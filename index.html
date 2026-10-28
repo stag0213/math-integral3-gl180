@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>円柱を平面で切った立体の体積</title>
+<!-- KaTeX（数式表示） -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;background:#eef1f6;color:#222}
+header{padding:10px 16px;background:#2b3a55;color:#fff}
+header h1{font-size:18px;margin:0}
+header p{margin:4px 0 0;font-size:13px;opacity:.9}
+main{display:grid;grid-template-columns:1fr 440px;gap:12px;padding:12px;height:calc(100vh - 70px)}
+#view{background:#fff;border-radius:10px;position:relative;overflow:hidden;min-height:420px}
+#toggles{position:absolute;top:8px;left:8px;background:rgba(255,255,255,.9);padding:6px 10px;border-radius:8px;font-size:13px;line-height:1.7}
+#legend{position:absolute;bottom:8px;left:8px;background:rgba(255,255,255,.9);padding:6px 10px;border-radius:8px;font-size:12px}
+#panel{overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.08);font-size:14px;line-height:1.7}
+.card h2{font-size:15px;margin:0 0 8px;border-left:4px solid #e67e22;padding-left:8px}
+canvas.fig{width:100%;border:1px solid #dde;border-radius:6px;background:#fcfcff}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+input[type=range]{flex:1}
+.val{font-family:monospace;font-weight:bold;color:#c0392b}
+.formula{background:#f6f7fb;padding:6px 8px;border-radius:6px;margin:4px 0;overflow-x:auto}
+.info{color:#7b241c;margin:4px 0}
+button{background:#2b3a55;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer}
+button:hover{background:#3d5280}
+table{border-collapse:collapse;width:100%;font-size:13px}
+td{padding:3px 6px;border-bottom:1px solid #eee}
+details summary{cursor:pointer;font-weight:bold;margin:4px 0}
+details .katex-display{margin:.4em 0;overflow-x:auto;overflow-y:hidden}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;margin-right:4px}
+@media(max-width:900px){main{grid-template-columns:1fr;height:auto}#view{height:60vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>円柱 \(C : x^2+y^2 \le 4,\ 0 \le z \le 1\) を平面 \(H\) で切った立体の体積</h1>
+  <p>\(H\)：xy平面上の直線 \(y=1\) を含み、xy平面と \(45^\circ\) をなし、点 \((0,2,1)\) を通る平面 → 求めるのは点 \((0,2,0)\) を含む側</p>
+</header>
+<main>
+  <div id="view">
+    <div id="toggles">
+      <label><input type="checkbox" id="tCyl" checked> 円柱C</label><br>
+      <label><input type="checkbox" id="tPlane" checked> 平面H</label><br>
+      <label><input type="checkbox" id="tSolid" checked> 求める立体</label><br>
+      <label><input type="checkbox" id="tSlice" checked> 断面</label><br>
+      <label><input type="checkbox" id="tPts" checked> 乱数点</label>
+    </div>
+    <div id="legend">
+      <span class="sw" style="background:#e67e22"></span>求める立体
+      <span class="sw" style="background:#27ae60;margin-left:8px"></span>平面H
+      <span class="sw" style="background:#c0392b;margin-left:8px"></span>断面
+      <br>ドラッグで回転 / ホイールで拡大縮小 / 右ドラッグで平行移動
+    </div>
+  </div>
+
+  <div id="panel">
+    <div class="card">
+      <h2>1. 平面Hと立体の式</h2>
+      \(H\) は直線 \(y=1,\ z=0\) を含み傾き \(45^\circ\)、点 \((0,2,1)\) を通るので
+      <div class="formula">\(H :\ z = y - 1\)</div>
+      点 \((0,2,0)\) では \(0 < 2-1\) なので、求める部分は
+      <div class="formula">\(x^2 + y^2 \le 4,\quad 0 \le z \le y - 1\)</div>
+      （円柱内では \(y \le 2\) なので \(z \le 1\) は自動的に成り立つ）
+    </div>
+
+    <div class="card">
+      <h2>2. 断面を調べる</h2>
+      <div class="row">切る方向：
+        <label><input type="radio" name="mode" value="z" checked> \(z = t\)</label>
+        <label><input type="radio" name="mode" value="y"> \(y = t\)</label>
+        <label><input type="radio" name="mode" value="x"> \(x = t\)</label>
+      </div>
+      <div class="row">\(t =\) <span class="val" id="tVal"></span>
+        <input type="range" id="tSlider" min="0" max="1000" value="300"></div>
+      <canvas class="fig" id="secCanvas" width="400" height="260"></canvas>
+      <div class="info" id="secInfo"></div>
+      <div id="secDesc" style="margin-top:4px"></div>
+      <div class="formula" id="secFormula"></div>
+      断面積 \(S(t) =\) <span class="val" id="secArea"></span>
+    </div>
+
+    <div class="card">
+      <h2>3. 区分求積法（中点和）</h2>
+      <div class="row">分割数 \(n =\) <span class="val" id="nVal"></span>
+        <input type="range" id="nSlider" min="1" max="100" value="5"></div>
+      <canvas class="fig" id="graphCanvas" width="400" height="230"></canvas>
+      <table>
+        <tr><td>近似値 \(\displaystyle\sum_{i=1}^{n} S(t_i)\,\Delta t\)</td><td class="val" id="riemann"></td></tr>
+        <tr><td>厳密値 \(3\sqrt{3} - \dfrac{4\pi}{3}\)</td><td class="val" id="exact"></td></tr>
+        <tr><td>誤差</td><td class="val" id="err"></td></tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>4. モンテカルロ法</h2>
+      箱 \([-2,2]\times[1,2]\times[0,1]\)（体積 \(4\)）に乱数点を打ち、立体内の点の割合から体積を推定します。
+      <div class="row">点の数：
+        <select id="mcN"><option>1000</option><option selected>10000</option><option>100000</option><option>1000000</option></select>
+        <button id="mcBtn">実行</button></div>
+      <div id="mcRes">—</div>
+    </div>
+
+    <div class="card">
+      <h2>5. 厳密解</h2>
+      <details open><summary>方法A：\(y = t\) で切る（長方形）</summary>
+        断面は 横 \(2\sqrt{4-y^2}\)、高さ \(y-1\) の長方形。
+        $$V=\int_1^2 2(y-1)\sqrt{4-y^2}\,dy$$
+        $$\int_1^2 2y\sqrt{4-y^2}\,dy=\left[-\frac{2}{3}\left(4-y^2\right)^{\frac{3}{2}}\right]_1^2=2\sqrt{3}$$
+        $$\int_1^2 2\sqrt{4-y^2}\,dy=\frac{4\pi}{3}-\sqrt{3}\quad(\text{円の弓形の面積})$$
+        $$V=2\sqrt{3}-\left(\frac{4\pi}{3}-\sqrt{3}\right)=3\sqrt{3}-\frac{4\pi}{3}$$
+      </details>
+      <details><summary>方法B：\(z = t\) で切る（弓形）</summary>
+        断面は円 \(x^2+y^2\le 4\) の \(y \ge 1+t\) の部分。\(s = 1+t\) とおくと
+        $$S = 4\arccos\frac{s}{2} - s\sqrt{4-s^2}$$
+        $$\int_1^2 4\arccos\frac{s}{2}\,ds = 4\sqrt{3}-\frac{4\pi}{3},\qquad \int_1^2 s\sqrt{4-s^2}\,ds=\sqrt{3}$$
+        $$V=\left(4\sqrt{3}-\frac{4\pi}{3}\right)-\sqrt{3}=3\sqrt{3}-\frac{4\pi}{3}$$
+      </details>
+      <details><summary>方法C：\(x = t\) で切る（直角二等辺三角形）</summary>
+        \(|x| \le \sqrt{3}\) で、断面は等辺 \(\sqrt{4-x^2}-1\) の直角二等辺三角形。
+        $$V=\int_{-\sqrt{3}}^{\sqrt{3}} \frac{\left(\sqrt{4-x^2}-1\right)^2}{2}\,dx = 3\sqrt{3}-\frac{4\pi}{3}$$
+      </details>
+      <div class="formula" style="margin-top:8px">\(V = 3\sqrt{3} - \dfrac{4\pi}{3} \approx\) <span id="exact2"></span></div>
+    </div>
+  </div>
+</main>
+
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- KaTeX ----------
+const KOPT = {delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}],throwOnError:false};
+const tex = el => renderMathInElement(el, KOPT);
+const setTex = (id, html) => { const el=document.getElementById(id); el.innerHTML=html; tex(el); };
+tex(document.body);
+
+const S3 = Math.sqrt(3);
+const EXACT = 3*S3 - 4*Math.PI/3;
+
+// ---------- 断面積関数 ----------
+const MODES = {
+  z:{a:0,b:1,
+     A:t=>{const s=1+t; if(s>=2) return 0; return 4*Math.acos(s/2)-s*Math.sqrt(4-s*s);},
+     desc:String.raw`平面 \(z = t\) で切ると、断面は円 \(x^2+y^2 \le 4\) のうち \(y \ge 1+t\) の部分（弓形）。`,
+     formula:String.raw`\(\displaystyle S(t) = 4\arccos\frac{1+t}{2} - (1+t)\sqrt{4-(1+t)^2}\quad(0 \le t \le 1)\)`},
+  y:{a:1,b:2,
+     A:t=>2*(t-1)*Math.sqrt(Math.max(0,4-t*t)),
+     desc:String.raw`平面 \(y = t\) で切ると、断面は 横 \(2\sqrt{4-t^2}\)、高さ \(t-1\) の長方形。`,
+     formula:String.raw`\(S(t) = 2(t-1)\sqrt{4-t^2}\quad(1 \le t \le 2)\)`},
+  x:{a:-S3,b:S3,
+     A:t=>{const Y=Math.sqrt(Math.max(0,4-t*t)); return Y>1?(Y-1)**2/2:0;},
+     desc:String.raw`平面 \(x = t\) で切ると、断面は 等辺 \(\sqrt{4-t^2}-1\) の直角二等辺三角形。`,
+     formula:String.raw`\(\displaystyle S(t) = \frac{\left(\sqrt{4-t^2}-1\right)^2}{2}\quad(-\sqrt{3} \le t \le \sqrt{3})\)`}
+};
+
+// ---------- Three.js 初期化 ----------
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(window.devicePixelRatio);
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf7f8fc);
+const camera = new THREE.PerspectiveCamera(40,1,0.1,100);
+camera.up.set(0,0,1);
+camera.position.set(6.5,-6,4.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0,0.6,0.4);
+controls.update();
+scene.add(new THREE.AmbientLight(0xffffff,0.65));
+const dl = new THREE.DirectionalLight(0xffffff,0.9); dl.position.set(4,-5,7); scene.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff,0.35); dl2.position.set(-4,5,-3); scene.add(dl2);
+
+const V3 = p => new THREE.Vector3(p[0],p[1],p[2]);
+function makeLine(pts,color,closed=false){
+  const g = new THREE.BufferGeometry().setFromPoints(pts.map(V3));
+  const m = new THREE.LineBasicMaterial({color});
+  return closed ? new THREE.LineLoop(g,m) : new THREE.Line(g,m);
+}
+function label(text,pos,color='#222',scale=0.9){
+  const c=document.createElement('canvas'); c.width=256; c.height=64;
+  const g=c.getContext('2d'); g.font='bold 36px sans-serif'; g.fillStyle=color;
+  g.textAlign='center'; g.textBaseline='middle'; g.fillText(text,128,32);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+  sp.scale.set(scale,scale/4,1); sp.position.set(...pos); scene.add(sp); return sp;
+}
+function fanGeo(pts){
+  const pos=[];
+  for(let i=1;i<pts.length-1;i++) pos.push(...pts[0],...pts[i],...pts[i+1]);
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.computeVertexNormals(); return g;
+}
+function segPts(s,z,N=72){
+  const a=Math.asin(Math.min(1,s/2)), pts=[];
+  for(let i=0;i<=N;i++){const th=a+(Math.PI-2*a)*i/N; pts.push([2*Math.cos(th),2*Math.sin(th),z]);}
+  return pts;
+}
+const circ = z => Array.from({length:129},(_,i)=>{const th=2*Math.PI*i/128;return [2*Math.cos(th),2*Math.sin(th),z];});
+
+// 軸
+scene.add(makeLine([[-3,0,0],[3,0,0]],0xcc3333));
+scene.add(makeLine([[0,-3,0],[0,3,0]],0x229944));
+scene.add(makeLine([[0,0,0],[0,0,2]],0x3355cc));
+label('x',[3.2,0,0],'#cc3333'); label('y',[0,3.2,0],'#229944'); label('z',[0,0,2.2],'#3355cc');
+
+// 円柱
+const cylGroup = new THREE.Group(); scene.add(cylGroup);
+const cylGeo = new THREE.CylinderGeometry(2,2,1,96,1,true);
+cylGeo.rotateX(Math.PI/2); cylGeo.translate(0,0,0.5);
+cylGroup.add(new THREE.Mesh(cylGeo,new THREE.MeshStandardMaterial({color:0x7f8fb5,transparent:true,opacity:0.13,side:THREE.DoubleSide,depthWrite:false})));
+cylGroup.add(makeLine(circ(0),0x556688)); cylGroup.add(makeLine(circ(1),0x556688));
+for(let k=0;k<12;k++){const th=2*Math.PI*k/12; cylGroup.add(makeLine([[2*Math.cos(th),2*Math.sin(th),0],[2*Math.cos(th),2*Math.sin(th),1]],0xaab4cc));}
+
+// 平面 H : z = y - 1
+const planeGroup = new THREE.Group(); scene.add(planeGroup);
+{
+  const y0=0.7,y1=2.4,xs=2.6;
+  const pts=[[-xs,y0,y0-1],[xs,y0,y0-1],[xs,y1,y1-1],[-xs,y1,y1-1]];
+  planeGroup.add(new THREE.Mesh(fanGeo(pts),new THREE.MeshStandardMaterial({color:0x27ae60,transparent:true,opacity:0.22,side:THREE.DoubleSide,depthWrite:false})));
+  planeGroup.add(makeLine(pts,0x27ae60,true));
+  planeGroup.add(makeLine([[-2.8,1,0],[2.8,1,0]],0x1e8449));
+  planeGroup.add(label('H : z = y − 1',[-2.4,2.4,1.55],'#1e8449',1.4));
+}
+
+// 点
+function dot(p,color,text){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16),new THREE.MeshBasicMaterial({color}));
+  m.position.set(...p); scene.add(m);
+  label(text,[p[0],p[1]+0.35,p[2]+0.15],'#'+color.toString(16).padStart(6,'0'),1.1);
+}
+dot([0,2,1],0x8e44ad,'(0,2,1)');
+dot([0,2,0],0xd35400,'(0,2,0)');
+
+// 求める立体
+const solidGroup = new THREE.Group(); scene.add(solidGroup);
+{
+  const mat=new THREE.MeshStandardMaterial({color:0xe67e22,transparent:true,opacity:0.8,side:THREE.DoubleSide,roughness:0.6});
+  const bottom=segPts(1,0);
+  solidGroup.add(new THREE.Mesh(fanGeo(bottom),mat));
+  const slant=bottom.map(p=>[p[0],p[1],p[1]-1]);
+  solidGroup.add(new THREE.Mesh(fanGeo(slant),mat));
+  const N=72,M=12,pos=[],idx=[],a=Math.PI/6,b=5*Math.PI/6;
+  for(let i=0;i<=N;i++){const th=a+(b-a)*i/N,x=2*Math.cos(th),y=2*Math.sin(th);
+    for(let k=0;k<=M;k++) pos.push(x,y,(y-1)*k/M);}
+  for(let i=0;i<N;i++)for(let k=0;k<M;k++){const p=i*(M+1)+k; idx.push(p,p+M+1,p+1,p+1,p+M+1,p+M+2);}
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  sg.setIndex(idx); sg.computeVertexNormals();
+  solidGroup.add(new THREE.Mesh(sg,mat));
+  solidGroup.add(makeLine(bottom,0xa04000,true));
+  solidGroup.add(makeLine(slant,0xa04000));
+}
+
+// 断面
+const sliceGroup = new THREE.Group(); scene.add(sliceGroup);
+function slicePts(mode,t){
+  if(mode==='z'){const s=1+t; if(s>=1.999) return null; return segPts(s,t);}
+  if(mode==='y'){const w=Math.sqrt(Math.max(0,4-t*t)),h=t-1; if(h<1e-3||w<1e-3) return null;
+    return [[-w,t,0],[w,t,0],[w,t,h],[-w,t,h]];}
+  const Y=Math.sqrt(Math.max(0,4-t*t)); if(Y-1<1e-3) return null;
+  return [[t,1,0],[t,Y,0],[t,Y,Y-1]];
+}
+function updateSlice3D(mode,t){
+  sliceGroup.children.forEach(c=>c.geometry.dispose()); sliceGroup.clear();
+  const pts=slicePts(mode,t); if(!pts) return;
+  sliceGroup.add(new THREE.Mesh(fanGeo(pts),new THREE.MeshBasicMaterial({color:0xc0392b,transparent:true,opacity:0.75,side:THREE.DoubleSide,depthTest:false})));
+  sliceGroup.add(makeLine(pts,0x7b241c,true));
+}
+
+// モンテカルロ
+let mcPoints=null;
+function runMC(){
+  const N=+document.getElementById('mcN').value;
+  let inside=0; const show=[]; const maxShow=20000;
+  for(let i=0;i<N;i++){
+    const x=-2+4*Math.random(), y=1+Math.random(), z=Math.random();
+    if(x*x+y*y<=4 && z<=y-1){inside++; if(show.length<maxShow*3) show.push(x,y,z);}
+  }
+  const est=4*inside/N;
+  setTex('mcRes', String.raw`立体内の点：${inside} / ${N}<br>
+    推定体積 \(= 4 \times \dfrac{${inside}}{${N}}\) = <span class="val">${est.toFixed(5)}</span>
+    （誤差 ${(est-EXACT).toFixed(5)}）`);
+  if(mcPoints){scene.remove(mcPoints); mcPoints.geometry.dispose();}
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(show,3));
+  mcPoints=new THREE.Points(g,new THREE.PointsMaterial({color:0x2c3e50,size:0.025}));
+  mcPoints.visible=document.getElementById('tPts').checked;
+  scene.add(mcPoints);
+}
+document.getElementById('mcBtn').onclick=runMC;
+
+// ---------- 2D描画補助 ----------
+function makeT(cv,xmin,xmax,ymin,ymax,pad=26){
+  const W=cv.width,H=cv.height;
+  const sc=Math.min((W-2*pad)/(xmax-xmin),(H-2*pad)/(ymax-ymin));
+  const ox=(W-sc*(xmax-xmin))/2, oy=(H-sc*(ymax-ymin))/2;
+  return (x,y)=>[ox+(x-xmin)*sc, H-oy-(y-ymin)*sc];
+}
+function poly(ctx,T,pts,fill,stroke,close=true){
+  ctx.beginPath();
+  pts.forEach((p,i)=>{const [X,Y]=T(p[0],p[1]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});
+  if(close) ctx.closePath();
+  if(fill){ctx.fillStyle=fill; ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke; ctx.stroke();}
+}
+function axes2D(ctx,T,x0,x1,y0,y1,lx,ly){
+  ctx.lineWidth=1;
+  poly(ctx,T,[[x0,0],[x1,0]],null,'#999',false);
+  poly(ctx,T,[[0,y0],[0,y1]],null,'#999',false);
+  ctx.fillStyle='#555'; ctx.font='italic 14px "Times New Roman",serif';
+  let [a,b]=T(x1,0); ctx.fillText(lx,a+4,b+4);
+  [a,b]=T(0,y1); ctx.fillText(ly,a+4,b+4);
+}
+// canvas上に括線つきの √3（負なら −√3）を描く
+function drawSqrt3(ctx,x,y,neg){
+  let cx=x;
+  if(neg){ctx.fillText('−',cx,y); cx+=ctx.measureText('−').width+1;}
+  const w=ctx.measureText('3').width;
+  ctx.save(); ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=1.1;
+  ctx.beginPath();
+  ctx.moveTo(cx,y-5); ctx.lineTo(cx+2,y-6.5); ctx.lineTo(cx+4.5,y);
+  ctx.lineTo(cx+7.5,y-12); ctx.lineTo(cx+9.5+w,y-12);
+  ctx.stroke(); ctx.restore();
+  ctx.fillText('3',cx+8.5,y);
+}
+function tickLabel(ctx,v,x,y){
+  if(Math.abs(Math.abs(v)-S3)<1e-9) drawSqrt3(ctx,x-6,y,v<0);
+  else ctx.fillText(String(v),x-4,y);
+}
+
+function drawSection(mode,t){
+  const cv=document.getElementById('secCanvas'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height); ctx.lineWidth=1.5;
+  const red='rgba(192,57,43,0.55)';
+  ctx.font='13px sans-serif';
+  if(mode==='z'){
+    const T=makeT(cv,-2.4,2.4,-2.4,2.4);
+    axes2D(ctx,T,-2.4,2.4,-2.4,2.4,'x','y');
+    poly(ctx,T,circ(0).map(p=>[p[0],p[1]]),'rgba(127,143,181,0.12)','#556688');
+    const pts=slicePts('z',t); if(pts) poly(ctx,T,pts.map(p=>[p[0],p[1]]),red,'#7b241c');
+    ctx.setLineDash([5,4]); poly(ctx,T,[[-2.4,1+t],[2.4,1+t]],null,'#c0392b',false); ctx.setLineDash([]);
+    ctx.fillStyle='#333'; ctx.font='13px sans-serif';
+    ctx.fillText('断面（xy平面への投影）',8,16);
+  }else if(mode==='y'){
+    const T=makeT(cv,-2.4,2.4,-0.3,1.4);
+    axes2D(ctx,T,-2.4,2.4,-0.3,1.4,'x','z');
+    const w=Math.sqrt(Math.max(0,4-t*t));
+    poly(ctx,T,[[-w,0],[w,0],[w,1],[-w,1]],'rgba(127,143,181,0.12)','#556688');
+    const pts=slicePts('y',t); if(pts) poly(ctx,T,pts.map(p=>[p[0],p[2]]),red,'#7b241c');
+    ctx.fillStyle='#333'; ctx.font='13px sans-serif';
+    ctx.fillText('断面（xz平面への投影）',8,16);
+  }else{
+    const T=makeT(cv,-2.3,2.4,-0.3,1.4);
+    axes2D(ctx,T,-2.3,2.4,-0.3,1.4,'y','z');
+    const Y=Math.sqrt(Math.max(0,4-t*t));
+    poly(ctx,T,[[-Y,0],[Y,0],[Y,1],[-Y,1]],'rgba(127,143,181,0.12)','#556688');
+    ctx.setLineDash([5,4]); poly(ctx,T,[[0.7,-0.3],[2.4,1.4]],null,'#27ae60',false); ctx.setLineDash([]);
+    const pts=slicePts('x',t); if(pts) poly(ctx,T,pts.map(p=>[p[1],p[2]]),red,'#7b241c');
+    ctx.fillStyle='#1e8449'; ctx.font='13px sans-serif';
+    const [a,b]=T(1.9,1.25); ctx.fillText('H: z = y − 1',a-80,b);
+    ctx.fillStyle='#333';
+    ctx.fillText('断面（yz平面への投影）',8,16);
+  }
+}
+
+function sectionInfo(mode,t){
+  if(mode==='z') return String.raw`\(z=${t.toFixed(3)}\)、弦の位置 \(y=1+t=${(1+t).toFixed(3)}\)`;
+  if(mode==='y'){const w=Math.sqrt(Math.max(0,4-t*t));
+    return String.raw`横 \(2\sqrt{4-t^2}=${(2*w).toFixed(3)}\)、高さ \(t-1=${(t-1).toFixed(3)}\)`;}
+  const Y=Math.sqrt(Math.max(0,4-t*t));
+  return String.raw`等辺 \(\sqrt{4-t^2}-1=${Math.max(0,Y-1).toFixed(3)}\)`;
+}
+
+function drawGraph(mode,n,tCur){
+  const M=MODES[mode], cv=document.getElementById('graphCanvas'), ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,cv.width,cv.height);
+  let maxA=0; for(let i=0;i<=400;i++) maxA=Math.max(maxA,M.A(M.a+(M.b-M.a)*i/400));
+  const pad=0.08*(M.b-M.a);
+  const W=cv.width,H=cv.height,L=40,R=12,Tp=14,B=28;
+  const X=t=>L+(t-(M.a-pad))/((M.b+pad)-(M.a-pad))*(W-L-R);
+  const Yf=v=>H-B-v/(maxA*1.1)*(H-B-Tp);
+  const h=(M.b-M.a)/n; let sum=0;
+  for(let i=0;i<n;i++){
+    const tm=M.a+(i+0.5)*h, A=M.A(tm); sum+=A*h;
+    ctx.fillStyle='rgba(230,126,34,0.35)'; ctx.strokeStyle='#d35400'; ctx.lineWidth=1;
+    ctx.fillRect(X(M.a+i*h),Yf(A),X(M.a+(i+1)*h)-X(M.a+i*h),Yf(0)-Yf(A));
+    ctx.strokeRect(X(M.a+i*h),Yf(A),X(M.a+(i+1)*h)-X(M.a+i*h),Yf(0)-Yf(A));
+  }
+  ctx.strokeStyle='#888'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(L,Yf(0)); ctx.lineTo(W-R,Yf(0)); ctx.moveTo(L,Tp); ctx.lineTo(L,H-B); ctx.stroke();
+  ctx.fillStyle='#444'; ctx.font='13px "Times New Roman",serif';
+  tickLabel(ctx,M.a,X(M.a),H-B+17);
+  tickLabel(ctx,M.b,X(M.b),H-B+17);
+  ctx.font='italic 14px "Times New Roman",serif';
+  ctx.fillText(mode,W-R-10,H-B+17);
+  ctx.fillText('S('+mode+')',L+4,Tp+6);
+  ctx.font='12px sans-serif';
+  ctx.fillText(maxA.toFixed(2),4,Yf(maxA)+4);
+  ctx.strokeStyle='#2b3a55'; ctx.lineWidth=2; ctx.beginPath();
+  for(let i=0;i<=300;i++){const t=M.a+(M.b-M.a)*i/300; const x=X(t),y=Yf(M.A(t)); i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.stroke();
+  ctx.strokeStyle='#c0392b'; ctx.lineWidth=1; ctx.setLineDash([4,3]); ctx.beginPath();
+  ctx.moveTo(X(tCur),Yf(0)); ctx.lineTo(X(tCur),Yf(M.A(tCur))); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#c0392b'; ctx.beginPath(); ctx.arc(X(tCur),Yf(M.A(tCur)),4,0,7); ctx.fill();
+  return sum;
+}
+
+// ---------- UI 更新 ----------
+const tSlider=document.getElementById('tSlider'), nSlider=document.getElementById('nSlider');
+const getMode=()=>document.querySelector('input[name=mode]:checked').value;
+let lastMode=null;
+function update(){
+  const mode=getMode(), M=MODES[mode];
+  const t=M.a+(M.b-M.a)*tSlider.value/1000, n=+nSlider.value;
+  document.getElementById('tVal').textContent=t.toFixed(3);
+  document.getElementById('nVal').textContent=n;
+  if(mode!==lastMode){ setTex('secDesc',M.desc); setTex('secFormula',M.formula); lastMode=mode; }
+  setTex('secInfo',sectionInfo(mode,t));
+  document.getElementById('secArea').textContent=M.A(t).toFixed(5);
+  updateSlice3D(mode,t);
+  drawSection(mode,t);
+  const sum=drawGraph(mode,n,t);
+  document.getElementById('riemann').textContent=sum.toFixed(6);
+  document.getElementById('exact').textContent=EXACT.toFixed(6);
+  document.getElementById('err').textContent=(sum-EXACT).toExponential(3);
+}
+tSlider.oninput=update; nSlider.oninput=update;
+document.querySelectorAll('input[name=mode]').forEach(r=>r.onchange=()=>{tSlider.value=500;update();});
+document.getElementById('exact2').textContent=EXACT.toFixed(6);
+
+// 表示切替
+const bind=(id,obj)=>document.getElementById(id).onchange=e=>{const o=obj(); if(o) o.visible=e.target.checked;};
+bind('tCyl',()=>cylGroup); bind('tPlane',()=>planeGroup); bind('tSolid',()=>solidGroup);
+bind('tSlice',()=>sliceGroup); bind('tPts',()=>mcPoints);
+
+// リサイズ & 描画ループ
+function resize(){const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(view); resize();
+(function loop(){requestAnimationFrame(loop); controls.update(); renderer.render(scene,camera);})();
+
+update();
+</script>
+</body>
+</html>
